@@ -1,0 +1,105 @@
+# Root .gitignore
+
+# --- General / OS ---
+.DS_Store
+Thumbs.db
+*.log
+logs/
+.tmp/
+tmp/
+
+# Local env files and secrets
+.env
+.env.*
+*.env.local
+*.secret
+
+# --- Editors / IDE ---
+.idea/
+.vscode/
+
+# --- Python / Django ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Packaging / tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.cache/
+
+# Local SQLite DBs
+db.sqlite3
+db.sqlite3-journal
+
+# PostgreSQL
+*.sql
+*.dump
+*.pgsql
+
+# Django collectstatic output (commit your source assets, not the collected ones)
+staticfiles/
+static_root/
+
+# User‑uploaded media (served from MEDIA_ROOT)
+media/
+
+# Coverage
+.coverage
+coverage.xml
+htmlcov/
+
+# --- JavaScript / React ---
+node_modules/
+# Build output (CRA, Vite, etc.)
+build/
+dist/
+# Tool caches
+.eslintcache
+.npm/
+.pnpm-store/
+.parcel-cache/
+
+# JS/TS test coverage
+coverage/
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- Flutter / Dart ---
+.dart_tool/
+.packages
+.flutter-plugins
+.flutter-plugins-dependencies
+.fvm/
+
+# Flutter build output
+build/
+# iOS/Android build artifacts and local config
+ios/Flutter/.last_build_id
+ios/Pods/
+android/.gradle/
+android/local.properties
+android/key.properties
+android/app/*.keystore
+android/app/*.jks
+
+# Xcode / CocoaPods user-specific files
+*.xcworkspace/
+*.xcuserdatad/
+
+# --- Misc caches ---
+*.swp
+*.swo
