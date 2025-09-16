@@ -23,6 +23,9 @@ DATABASES = {
         },
         'CONN_MAX_AGE': 600,
         'ATOMIC_REQUESTS': True,
+        'TEST': {
+            'NAME': config('DB_TEST_NAME'),
+        },
     }
 }
 

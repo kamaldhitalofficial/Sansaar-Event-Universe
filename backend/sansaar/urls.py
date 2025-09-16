@@ -16,7 +16,7 @@ Including another URLconf
 """
 
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from django.views.generic import RedirectView
@@ -29,6 +29,9 @@ from django.http import JsonResponse
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+
+    # Authentication
+    path('api/auth', include('authentication.urls')),
 
     # Documentation
     path('', RedirectView.as_view(pattern_name='swagger-ui', permanent=False), name='root-redirect'),
