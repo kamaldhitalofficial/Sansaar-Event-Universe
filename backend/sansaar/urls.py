@@ -31,7 +31,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
 
     # Authentication
-    path('api/auth', include('authentication.urls')),
+    path('api/auth/', include('authentication.urls')),
 
     # Documentation
     path('', RedirectView.as_view(pattern_name='swagger-ui', permanent=False), name='root-redirect'),

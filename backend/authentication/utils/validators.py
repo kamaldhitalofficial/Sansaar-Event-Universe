@@ -247,7 +247,7 @@ class NameValidator:
     FAKE_PATTERNS = {
         'test', 'fake', 'dummy', 'admin', 'null', 'undefined',
         'asdf', 'qwerty', '123', 'abc', 'xxx', 'user', 'name',
-        'firstname', 'lastname', 'john', 'jane', 'doe', 'smith'
+        'firstname', 'lastname'
     }
 
     def __call__(self, value):
@@ -294,8 +294,8 @@ class NameValidator:
                 code='name_too_long'
             )
 
-        # Check for valid characters (letters, spaces, hyphens, apostrophes)
-        if not re.match(r"^[a-zA-Z\s\-']+$", value):
+        # Check for valid characters (letters, spaces, hyphens, apostrophes, accented characters)
+        if not re.match(r"^[a-zA-ZÀ-ÿĀ-žА-я\s\-']+$", value):
             raise ValidationError(
                 'Name can only contain letters, spaces, hyphens, and apostrophes.',
                 code='invalid_name_characters'
