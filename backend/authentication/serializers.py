@@ -194,18 +194,37 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         """
         Create a new user with validated data.
         """
-        # Extract password before creating user
-        password = validated_data.pop('password')
+        from .services.registration import RegistrationService
 
-        # Create user (inactive by default, requires email verification)
-        user = User.objects.create_user(
-            password=password,
-            is_active=False,  # User must verify email first
-            **validated_data
-        )
+        # Get request from context if available
+        request = self.context.get('request')
+
+        # Create user and send verification email
+        user, verification_sent, message = RegistrationService.create_user(validated_data, request)
+
+        # Store verification info for view to access
+        user._verification_sent = verification_sent
+        user._verification_message = message
 
         logger.info(f"New user registered: {user.email}")
         return user
+
+    def save(self, **kwargs):
+        """
+        Override save to return additional verification info.
+        """
+        request = kwargs.pop('request', None)
+        if request:
+            self.context['request'] = request
+
+        if self.instance is not None:
+            # Update existing instance
+            user = super().save(**kwargs)
+            return user, False, ''
+        else:
+            # Create new instance
+            user = self.create(self.validated_data)
+            return user, getattr(user, '_verification_sent', False), getattr(user, '_verification_message', '')
 
     def _is_suspicious_domain(self, domain):
         """

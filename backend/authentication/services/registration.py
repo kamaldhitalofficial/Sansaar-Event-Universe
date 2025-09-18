@@ -17,15 +17,16 @@ class RegistrationService:
     """
 
     @staticmethod
-    def create_user(validated_data):
+    def create_user(validated_data, request=None):
         """
-        Create a new user with the provided validated data.
+        Create a new user with the provided validated data and send verification email.
 
         Args:
             validated_data (dict): Validated user data from serializer
+            request: Django request object for tracking
 
         Returns:
-            User: Created user instance
+            tuple: (user: User, verification_sent: bool, message: str)
         """
         try:
             # Extract password
@@ -38,8 +39,12 @@ class RegistrationService:
                 **validated_data
             )
 
-            logger.info(f"User created successfully: {user.email}")
-            return user
+            # Send verification email
+            from .email_service import EmailService
+            success, message, verification = EmailService.send_verification_email(user, request)
+
+            logger.info(f"User created successfully: {user.email}, verification email sent: {success}")
+            return user, success, message
 
         except Exception as e:
             logger.error(f"Failed to create user: {e}")
@@ -144,36 +149,8 @@ class RegistrationService:
         Returns:
             tuple: (success: bool, message: str)
         """
-        try:
-            user = User.objects.get(email=email)
-
-            if user.is_active and user.is_email_verified:
-                return False, "Account is already verified"
-
-            # Check rate limiting for resend requests
-            cache_key = f"resend_verification_{email}"
-            last_sent = cache.get(cache_key)
-
-            if last_sent:
-                return False, "Verification email was recently sent. Please wait before requesting another."
-
-            # Generate new token
-            token = RegistrationService.generate_verification_token(user)
-
-            # Set rate limiting (5 minutes)
-            cache.set(cache_key, timezone.now().isoformat(), 300)
-
-            # TODO: Send email (will be implemented in task 6)
-            logger.info(f"Verification email resent to: {email}")
-
-            return True, "Verification email sent successfully"
-
-        except User.DoesNotExist:
-            # Don't reveal if email exists or not for security
-            return False, "If this email is registered, a verification email will be sent"
-        except Exception as e:
-            logger.error(f"Failed to resend verification email: {e}")
-            return False, "Failed to send verification email"
+        from .email_service import EmailService
+        return EmailService.resend_verification_email(email)
 
     @staticmethod
     def check_email_availability(email):

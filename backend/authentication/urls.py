@@ -10,6 +10,9 @@ urlpatterns = [
     path('register/check-email/', views.check_email_availability, name='check_email_availability'),
     path('register/resend-verification/', views.resend_verification_email, name='resend_verification'),
 
+    # Email Verification
+    path('verify-email/<uuid:token>/', views.verify_email, name='verify_email'),
+
     # User Authentication
     path('login/', views.login_user, name='login'),
     path('logout/', views.logout_user, name='logout'),

@@ -102,16 +102,13 @@ def register_user(request):
 
     if serializer.is_valid():
         try:
-            # Create user
-            user = serializer.save()
+            # Create user and send verification email
+            user, verification_sent, email_message = serializer.save(request=request)
 
             # Log successful registration
             logger.info(f"User registration successful: {user.email} from IP: {get_client_ip(request)}")
 
-            # TODO: Send email verification (will be implemented in task 6)
-            # For now, we'll just return success response
-
-            return Response({
+            response_data = {
                 'message': 'Registration successful. Please check your email to verify your account.',
                 'user': {
                     'id': str(user.id),
@@ -120,8 +117,15 @@ def register_user(request):
                     'last_name': user.last_name,
                     'is_email_verified': user.is_email_verified,
                     'date_joined': user.date_joined.isoformat()
-                }
-            }, status=status.HTTP_201_CREATED)
+                },
+                'verification_email_sent': verification_sent
+            }
+
+            # Add email status message if verification email failed
+            if not verification_sent:
+                response_data['email_warning'] = email_message
+
+            return Response(response_data, status=status.HTTP_201_CREATED)
 
         except Exception as e:
             # Increment rate limit on any error to prevent abuse
@@ -210,6 +214,50 @@ def check_email_availability(request):
     })
 
 
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def verify_email(request, token):
+    """
+    Verify user email using verification token.
+
+    URL: /auth/verify-email/<token>/
+    """
+    from .services.email_service import EmailService
+
+    try:
+        # Verify email using token
+        success, user, message = EmailService.verify_email(token)
+
+        if success:
+            logger.info(f"Email verification successful for user: {user.email} from IP: {get_client_ip(request)}")
+
+            return Response({
+                'message': message,
+                'user': {
+                    'id': str(user.id),
+                    'email': user.email,
+                    'first_name': user.first_name,
+                    'last_name': user.last_name,
+                    'is_email_verified': user.is_email_verified,
+                    'is_active': user.is_active
+                }
+            }, status=status.HTTP_200_OK)
+        else:
+            logger.warning(f"Email verification failed for token: {token} from IP: {get_client_ip(request)}")
+
+            return Response({
+                'error': message,
+                'code': 'VERIFICATION_FAILED'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+    except Exception as e:
+        logger.error(f"Email verification error for token {token}: {str(e)}")
+        return Response({
+            'error': 'Verification failed. Please try again.',
+            'code': 'VERIFICATION_ERROR'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def resend_verification_email(request):
@@ -234,7 +282,7 @@ def resend_verification_email(request):
             'error': 'Too many resend attempts. Please try again later.',
             'code': 'RATE_LIMIT_EXCEEDED',
             'reset_time': reset_time
-        }, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        }, status=status.HTTP_400_BAD_REQUEST)
 
     email = request.data.get('email', '').strip().lower()
 
@@ -246,10 +294,13 @@ def resend_verification_email(request):
         }, status=status.HTTP_400_BAD_REQUEST)
 
     # Attempt to resend verification email
-    success, message = RegistrationService.resend_verification_email(email)
+    from .services.email_service import EmailService
+    success, message = EmailService.resend_verification_email(email)
 
     if not success:
-        increment_rate_limit(request, 'resend_verification')
+        # Only increment rate limit if it's not already rate limited
+        if "recently sent" not in message.lower():
+            increment_rate_limit(request, 'resend_verification')
         return Response({
             'error': message,
             'code': 'RESEND_FAILED'
