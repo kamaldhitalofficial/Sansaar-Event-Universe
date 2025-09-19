@@ -1,6 +1,7 @@
 """
-Authentication views for user registration, login, and account management.
+Login views for user login, logout, and token management.
 """
+import logging
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.utils import timezone
@@ -9,18 +10,20 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from .serializers import UserRegistrationSerializer
-import logging
-import hashlib
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample
+from drf_spectacular.types import OpenApiTypes
+from ..serializers.login import (
+    UserLoginSerializer,
+    TokenRefreshSerializer,
+    LogoutSerializer
+)
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
 
 
 def get_client_ip(request):
-    """
-    Get the client's IP address from the request.
-    """
+    """Get the client's IP address from the request."""
     x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
     if x_forwarded_for:
         ip = x_forwarded_for.split(',')[0]
@@ -29,13 +32,13 @@ def get_client_ip(request):
     return ip
 
 
-def is_rate_limited(request, action='registration', limit=5, window=3600):
+def is_rate_limited(request, action='login', limit=10, window=3600):
     """
     Check if the request is rate limited based on IP address.
 
     Args:
         request: Django request object
-        action: Action being rate limited (e.g., 'registration', 'login')
+        action: Action being rate limited
         limit: Maximum number of attempts allowed
         window: Time window in seconds
 
@@ -57,10 +60,8 @@ def is_rate_limited(request, action='registration', limit=5, window=3600):
     return False, limit - attempts, None
 
 
-def increment_rate_limit(request, action='registration', window=3600):
-    """
-    Increment the rate limit counter for the given action and IP.
-    """
+def increment_rate_limit(request, action='login', window=3600):
+    """Increment the rate limit counter for the given action and IP."""
     ip_address = get_client_ip(request)
     cache_key = f"rate_limit_{action}_{ip_address}"
 
@@ -69,251 +70,119 @@ def increment_rate_limit(request, action='registration', window=3600):
     cache.set(cache_key, current_attempts + 1, window)
 
 
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def register_user(request):
-    """
-    Register a new user with comprehensive validation and rate limiting.
-
-    Expected payload:
-    {
-        "email": "user@example.com",
-        "password": "SecurePassword123!",
-        "password_confirm": "SecurePassword123!",
-        "first_name": "John",  # optional
-        "last_name": "Doe"     # optional
-    }
-    """
-    # Check rate limiting
-    is_limited, attempts_remaining, reset_time = is_rate_limited(
-        request, 'registration', limit=5, window=3600  # 5 attempts per hour
-    )
-
-    if is_limited:
-        logger.warning(f"Registration rate limit exceeded for IP: {get_client_ip(request)}")
-        return Response({
-            'error': 'Too many registration attempts. Please try again later.',
-            'code': 'RATE_LIMIT_EXCEEDED',
-            'reset_time': reset_time
-        }, status=status.HTTP_429_TOO_MANY_REQUESTS)
-
-    # Validate and create user
-    serializer = UserRegistrationSerializer(data=request.data)
-
-    if serializer.is_valid():
-        try:
-            # Create user and send verification email
-            user, verification_sent, email_message = serializer.save(request=request)
-
-            # Log successful registration
-            logger.info(f"User registration successful: {user.email} from IP: {get_client_ip(request)}")
-
-            response_data = {
-                'message': 'Registration successful. Please check your email to verify your account.',
-                'user': {
-                    'id': str(user.id),
-                    'email': user.email,
-                    'first_name': user.first_name,
-                    'last_name': user.last_name,
-                    'is_email_verified': user.is_email_verified,
-                    'date_joined': user.date_joined.isoformat()
-                },
-                'verification_email_sent': verification_sent
+@extend_schema(
+    operation_id='login_user',
+    summary='User Login',
+    description="""
+    Authenticate user and return JWT access and refresh tokens.
+    
+    **Security Features:**
+    - Rate limiting: 10 login attempts per hour per IP
+    - Account lockout protection after multiple failed attempts
+    - Suspicious login detection and logging
+    - Session tracking and device fingerprinting
+    - Automatic failed attempt tracking and reset
+    
+    **Authentication Process:**
+    1. Validates email and password credentials
+    2. Checks account status (active, email verified, not locked)
+    3. Generates JWT access and refresh tokens
+    4. Creates session record for tracking
+    5. Logs login attempt for security monitoring
+    6. Detects and flags suspicious login patterns
+    
+    **Token Information:**
+    - Access Token: Short-lived token for API authentication
+    - Refresh Token: Long-lived token for obtaining new access tokens
+    - Token Type: Bearer (use in Authorization header)
+    - Expires In: Access token lifetime in seconds
+    
+    **Remember Me Feature:**
+    - When enabled, extends refresh token lifetime
+    - Provides longer session duration
+    - Useful for trusted devices
+    
+    **Security Monitoring:**
+    - Tracks login location, device, and browser
+    - Detects unusual login patterns
+    - Logs security events for audit
+    - Provides warnings for suspicious activity
+    """,
+    tags=['Login'],
+    request=UserLoginSerializer,
+    examples=[
+        OpenApiExample(
+            'Standard Login',
+            value={
+                'email': 'user@example.com',
+                'password': 'SecurePassword123!',
+                'remember_me': False
             }
-
-            # Add email status message if verification email failed
-            if not verification_sent:
-                response_data['email_warning'] = email_message
-
-            return Response(response_data, status=status.HTTP_201_CREATED)
-
-        except Exception as e:
-            # Increment rate limit on any error to prevent abuse
-            increment_rate_limit(request, 'registration')
-
-            logger.error(f"User registration failed: {str(e)} for IP: {get_client_ip(request)}")
-            return Response({
-                'error': 'Registration failed. Please try again.',
-                'code': 'REGISTRATION_FAILED'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    else:
-        # Increment rate limit on validation errors to prevent spam
-        increment_rate_limit(request, 'registration')
-
-        # Log validation errors
-        logger.warning(f"Registration validation failed for IP: {get_client_ip(request)}, errors: {serializer.errors}")
-
-        return Response({
-            'error': 'Validation failed',
-            'code': 'VALIDATION_ERROR',
-            'details': serializer.errors,
-            'attempts_remaining': attempts_remaining - 1
-        }, status=status.HTTP_400_BAD_REQUEST)
-
-
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def registration_status(request):
-    """
-    Check registration rate limit status for the current IP.
-    """
-    is_limited, attempts_remaining, reset_time = is_rate_limited(
-        request, 'registration', limit=5, window=3600
-    )
-
-    return Response({
-        'rate_limited': is_limited,
-        'attempts_remaining': attempts_remaining,
-        'reset_time': reset_time,
-        'limit': 5,
-        'window': 3600
-    })
-
-
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def check_email_availability(request):
-    """
-    Check if an email address is available for registration.
-
-    Expected payload:
-    {
-        "email": "user@example.com"
-    }
-    """
-    from .services.registration import RegistrationService
-    from django.core.validators import EmailValidator
-    from django.core.exceptions import ValidationError
-
-    email = request.data.get('email', '').strip().lower()
-
-    if not email:
-        return Response({
-            'error': 'Email address is required',
-            'code': 'EMAIL_REQUIRED'
-        }, status=status.HTTP_400_BAD_REQUEST)
-
-    # Validate email format
-    validator = EmailValidator()
-    try:
-        validator(email)
-    except ValidationError:
-        return Response({
-            'error': 'Invalid email format',
-            'code': 'INVALID_EMAIL_FORMAT'
-        }, status=status.HTTP_400_BAD_REQUEST)
-
-    # Check availability
-    is_available = RegistrationService.check_email_availability(email)
-
-    return Response({
-        'email': email,
-        'available': is_available,
-        'message': 'Email is available' if is_available else 'Email is already registered'
-    })
-
-
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def verify_email(request, token):
-    """
-    Verify user email using verification token.
-
-    URL: /auth/verify-email/<token>/
-    """
-    from .services.email_service import EmailService
-
-    try:
-        # Verify email using token
-        success, user, message = EmailService.verify_email(token)
-
-        if success:
-            logger.info(f"Email verification successful for user: {user.email} from IP: {get_client_ip(request)}")
-
-            return Response({
-                'message': message,
-                'user': {
-                    'id': str(user.id),
-                    'email': user.email,
-                    'first_name': user.first_name,
-                    'last_name': user.last_name,
-                    'is_email_verified': user.is_email_verified,
-                    'is_active': user.is_active
+        ),
+        OpenApiExample(
+            'Remember Me Login',
+            value={
+                'email': 'user@example.com',
+                'password': 'SecurePassword123!',
+                'remember_me': True
+            }
+        )
+    ],
+    responses={
+        200: {
+            'description': 'Login successful',
+            'examples': {
+                'application/json': {
+                    'message': 'Login successful',
+                    'user': {
+                        'id': '123e4567-e89b-12d3-a456-426614174000',
+                        'email': 'user@example.com',
+                        'first_name': 'John',
+                        'last_name': 'Doe',
+                        'is_email_verified': True,
+                        'last_login': '2024-01-15T10:30:00Z'
+                    },
+                    'tokens': {
+                        'access_token': 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...',
+                        'refresh_token': 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...',
+                        'token_type': 'Bearer',
+                        'expires_in': 3600,
+                        'token_id': 'abc123def456'
+                    },
+                    'session': {
+                        'id': '456e7890-e12b-34d5-a678-901234567890',
+                        'device_type': 'desktop',
+                        'browser': 'Chrome',
+                        'is_new_device': False
+                    }
                 }
-            }, status=status.HTTP_200_OK)
-        else:
-            logger.warning(f"Email verification failed for token: {token} from IP: {get_client_ip(request)}")
-
-            return Response({
-                'error': message,
-                'code': 'VERIFICATION_FAILED'
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-    except Exception as e:
-        logger.error(f"Email verification error for token {token}: {str(e)}")
-        return Response({
-            'error': 'Verification failed. Please try again.',
-            'code': 'VERIFICATION_ERROR'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def resend_verification_email(request):
-    """
-    Resend verification email for a registered user.
-
-    Expected payload:
-    {
-        "email": "user@example.com"
+            }
+        },
+        400: {
+            'description': 'Invalid credentials or validation error',
+            'examples': {
+                'application/json': {
+                    'error': 'Invalid credentials or validation failed',
+                    'code': 'VALIDATION_ERROR',
+                    'details': {
+                        'non_field_errors': ['Invalid email or password.']
+                    },
+                    'attempts_remaining': 9
+                }
+            }
+        },
+        429: {
+            'description': 'Rate limited',
+            'examples': {
+                'application/json': {
+                    'error': 'Too many login attempts. Please try again later.',
+                    'code': 'RATE_LIMIT_EXCEEDED',
+                    'reset_time': 1640995200
+                }
+            }
+        }
     }
-    """
-    from .services.registration import RegistrationService
-
-    # Check rate limiting
-    is_limited, attempts_remaining, reset_time = is_rate_limited(
-        request, 'resend_verification', limit=3, window=3600  # 3 attempts per hour
-    )
-
-    if is_limited:
-        logger.warning(f"Resend verification rate limit exceeded for IP: {get_client_ip(request)}")
-        return Response({
-            'error': 'Too many resend attempts. Please try again later.',
-            'code': 'RATE_LIMIT_EXCEEDED',
-            'reset_time': reset_time
-        }, status=status.HTTP_400_BAD_REQUEST)
-
-    email = request.data.get('email', '').strip().lower()
-
-    if not email:
-        increment_rate_limit(request, 'resend_verification')
-        return Response({
-            'error': 'Email address is required',
-            'code': 'EMAIL_REQUIRED'
-        }, status=status.HTTP_400_BAD_REQUEST)
-
-    # Attempt to resend verification email
-    from .services.email_service import EmailService
-    success, message = EmailService.resend_verification_email(email)
-
-    if not success:
-        # Only increment rate limit if it's not already rate limited
-        if "recently sent" not in message.lower():
-            increment_rate_limit(request, 'resend_verification')
-        return Response({
-            'error': message,
-            'code': 'RESEND_FAILED'
-        }, status=status.HTTP_400_BAD_REQUEST)
-
-    logger.info(f"Verification email resend requested for: {email} from IP: {get_client_ip(request)}")
-
-    return Response({
-        'message': message,
-        'email': email
-    })
-
-
+)
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def login_user(request):
@@ -327,12 +196,10 @@ def login_user(request):
         "remember_me": false  # optional
     }
     """
-    from .serializers import UserLoginSerializer
-    from .services.session_service import SessionService
-    from .models import LoginHistory
-    from .utils.device_detection import is_suspicious_login, log_security_event
+    from ..services.session_service import SessionService
+    from ..models import LoginHistory
+    from ..utils.device_detection import is_suspicious_login, log_security_event
     from rest_framework_simplejwt.tokens import RefreshToken
-    from datetime import timedelta
 
     # Check rate limiting
     is_limited, attempts_remaining, reset_time = is_rate_limited(
@@ -475,7 +342,71 @@ def login_user(request):
         }, status=status.HTTP_400_BAD_REQUEST)
 
 
+@extend_schema(
+    operation_id='user_logout',
+    summary='User Logout',
+    description="""
+    Logout user and invalidate JWT tokens.
+    
+    **Logout Options:**
+    - **Single Device**: Logout from current device only (default)
+    - **All Devices**: Logout from all devices and terminate all sessions
+    
+    **What happens during logout:**
+    1. Current access token is blacklisted
+    2. Current refresh token is invalidated
+    3. Session record is terminated
+    4. Optional: All user sessions are terminated
+    
+    **Security Features:**
+    - Token blacklisting prevents reuse
+    - Session cleanup for security
+    - Audit trail of logout events
+    - Device-specific or global logout options
+    
+    After logout, the user will need to login again to access protected endpoints.
+    """,
+    tags=['Login'],
+    request=LogoutSerializer,
+    examples=[
+        OpenApiExample(
+            'Single Device Logout',
+            value={
+                'logout_all_devices': False
+            }
+        ),
+        OpenApiExample(
+            'All Devices Logout',
+            value={
+                'logout_all_devices': True
+            }
+        )
+    ],
+    responses={
+        200: OpenApiExample(
+            'Single Device Logout Success',
+            value={
+                'message': 'Successfully logged out'
+            }
+        ),
+        200: OpenApiExample(
+            'All Devices Logout Success',
+            value={
+                'message': 'Successfully logged out from all devices (3 sessions)',
+                'sessions_terminated': 3
+            }
+        ),
+        401: OpenApiExample(
+            'Invalid Token',
+            value={
+                'error': 'Invalid token',
+                'code': 'INVALID_TOKEN'
+            }
+        )
+    }
+)
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def logout_user(request):
     """
     Logout user and invalidate tokens.
@@ -485,8 +416,7 @@ def logout_user(request):
         "logout_all_devices": false  # optional
     }
     """
-    from .serializers import LogoutSerializer
-    from .services.session_service import SessionService
+    from ..services.session_service import SessionService
     from rest_framework_simplejwt.tokens import RefreshToken, UntypedToken
     from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 
@@ -561,6 +491,63 @@ def logout_user(request):
         }, status=status.HTTP_400_BAD_REQUEST)
 
 
+@extend_schema(
+    operation_id='refresh_user_token',
+    summary='Refresh Access Token',
+    description="""
+    Refresh access token using a valid refresh token.
+    
+    **Token Refresh Process:**
+    1. Validates the provided refresh token
+    2. Generates a new access token
+    3. Updates session activity timestamp
+    4. Returns new access token with expiration info
+    
+    **When to use:**
+    - When access token expires (typically after 1 hour)
+    - To maintain user session without re-login
+    - For seamless user experience in long-running applications
+    
+    **Security Features:**
+    - Refresh token validation using SimpleJWT
+    - Session activity tracking
+    - Automatic token rotation (optional)
+    - Secure token generation
+    
+    **Note:** Refresh tokens have longer lifetime than access tokens but will eventually expire.
+    When refresh token expires, user must login again.
+    """,
+    tags=['Login'],
+    request=TokenRefreshSerializer,
+    examples=[
+        OpenApiExample(
+            'Refresh Token Request',
+            value={
+                'refresh_token': 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTY0MDk5NTIwMCwidXNlcl9pZCI6MX0.example_signature'
+            }
+        )
+    ],
+    responses={
+        200: OpenApiExample(
+            'Token Refresh Success',
+            value={
+                'message': 'Token refreshed successfully',
+                'tokens': {
+                    'access_token': 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...',
+                    'token_type': 'Bearer',
+                    'expires_in': 3600
+                }
+            }
+        ),
+        401: OpenApiExample(
+            'Invalid Refresh Token',
+            value={
+                'error': 'Invalid or expired refresh token',
+                'code': 'TOKEN_REFRESH_FAILED'
+            }
+        )
+    }
+)
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def refresh_token(request):
@@ -572,8 +559,7 @@ def refresh_token(request):
         "refresh_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
     }
     """
-    from .serializers import TokenRefreshSerializer
-    from .services.session_service import SessionService
+    from ..services.session_service import SessionService
     from rest_framework_simplejwt.tokens import RefreshToken
     from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 
@@ -616,79 +602,3 @@ def refresh_token(request):
             'code': 'VALIDATION_ERROR',
             'details': serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
-
-
-@api_view(['GET'])
-def get_user_sessions(request):
-    """
-    Get active sessions for the current user.
-    """
-    from .services.session_service import SessionService
-    from rest_framework_simplejwt.tokens import UntypedToken
-    from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
-
-    user_id = str(request.user.id)
-
-    # Get current token to identify current session
-    auth_header = request.META.get('HTTP_AUTHORIZATION', '')
-    current_token_id = None
-
-    if auth_header.startswith('Bearer '):
-        token = auth_header.split(' ')[1]
-        try:
-            untyped_token = UntypedToken(token)
-            current_token_id = str(untyped_token.jti)
-        except (InvalidToken, TokenError):
-            pass
-
-    # Get session summary
-    summary = SessionService.get_session_summary(user_id)
-
-    # Mark current session
-    for session in summary['sessions']:
-        if session['token_id'] == current_token_id:
-            session['is_current'] = True
-
-    return Response(summary)
-
-
-@api_view(['POST'])
-def terminate_session(request):
-    """
-    Terminate a specific session.
-
-    Expected payload:
-    {
-        "token_id": "session_token_id_to_terminate"
-    }
-    """
-    from .services.session_service import SessionService
-
-    token_id = request.data.get('token_id')
-
-    if not token_id:
-        return Response({
-            'error': 'Token ID is required',
-            'code': 'TOKEN_ID_REQUIRED'
-        }, status=status.HTTP_400_BAD_REQUEST)
-
-    # Verify the session belongs to the current user
-    session = SessionService.get_session_by_token_id(token_id)
-    if not session or session.user.id != request.user.id:
-        return Response({
-            'error': 'Session not found or access denied',
-            'code': 'SESSION_NOT_FOUND'
-        }, status=status.HTTP_404_NOT_FOUND)
-
-    # Terminate the session
-    success = SessionService.terminate_session(token_id, reason='manual_termination')
-
-    if success:
-        return Response({
-            'message': 'Session terminated successfully'
-        })
-    else:
-        return Response({
-            'error': 'Failed to terminate session',
-            'code': 'TERMINATION_FAILED'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

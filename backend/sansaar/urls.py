@@ -30,8 +30,11 @@ from django.http import JsonResponse
 urlpatterns = [
     path('admin/', admin.site.urls),
 
-    # Authentication
+    # Authentication (registration, login, sessions)
     path('api/auth/', include('authentication.urls')),
+
+    # Profile Management
+    path('api/', include('authentication.urls.profile')),
 
     # Documentation
     path('', RedirectView.as_view(pattern_name='swagger-ui', permanent=False), name='root-redirect'),
