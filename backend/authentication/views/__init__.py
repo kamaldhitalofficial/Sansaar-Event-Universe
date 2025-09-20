@@ -57,6 +57,12 @@ from .mfa import (
     mfa_recovery_verify,
     check_trusted_device
 )
+from .auth import (
+    GoogleOAuthLoginView,
+    GoogleOAuthCallbackView,
+    GoogleAccountConnectView,
+    GoogleAccountDisconnectView
+)
 
 __all__ = [
     # Registration
@@ -112,5 +118,11 @@ __all__ = [
     'revoke_trusted_device',
     'mfa_recovery_request',
     'mfa_recovery_verify',
-    'check_trusted_device'
+    'check_trusted_device',
+
+    # Social Authentication
+    'GoogleOAuthLoginView',
+    'GoogleOAuthCallbackView',
+    'GoogleAccountConnectView',
+    'GoogleAccountDisconnectView'
 ]

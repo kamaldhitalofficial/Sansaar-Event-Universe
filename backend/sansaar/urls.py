@@ -36,6 +36,9 @@ urlpatterns = [
     # Profile Management
     path('api/', include('authentication.urls.profile')),
 
+    # Social Authentication (Google OAuth)
+    path('accounts/', include('allauth.urls')),
+
     # Documentation
     path('', RedirectView.as_view(pattern_name='swagger-ui', permanent=False), name='root-redirect'),
     path('schema/', SpectacularAPIView.as_view(), name='schema'),
