@@ -87,6 +87,10 @@ class UserProfile(models.Model):
         blank=True,
         help_text='Profile picture (max 5MB, JPG/PNG only)'
     )
+    profile_picture_url = models.URLField(
+        blank=True,
+        help_text='Profile picture URL from social providers'
+    )
 
     # Social Links
     website_url = models.URLField(blank=True, help_text='Personal or professional website')
@@ -141,6 +145,18 @@ class UserProfile(models.Model):
     security_alerts = models.BooleanField(
         default=True,
         help_text='Receive security-related alerts'
+    )
+
+    # Localization Preferences
+    language_preference = models.CharField(
+        max_length=10,
+        default='en',
+        help_text='Preferred language code (e.g., en, es, fr)'
+    )
+    user_timezone = models.CharField(
+        max_length=50,
+        default='UTC',
+        help_text='User timezone (e.g., America/New_York, Europe/London)'
     )
 
     # Profile Completion Tracking

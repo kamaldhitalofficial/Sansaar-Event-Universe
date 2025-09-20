@@ -187,6 +187,11 @@ class PrivacySettings(models.Model):
         help_text='Allow login through social media accounts'
     )
 
+    allow_social_profile_sync = models.BooleanField(
+        default=True,
+        help_text='Allow syncing profile information from social accounts'
+    )
+
     share_with_partners = models.BooleanField(
         default=False,
         help_text='Share data with trusted partners'
