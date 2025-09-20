@@ -19,6 +19,16 @@ from .profile import (
     ProfileCompletionSerializer,
     ProfileVisibilitySerializer
 )
+from .privacy import (
+    PrivacySettingsSerializer,
+    PrivacySettingsUpdateSerializer,
+    ConsentManagementSerializer,
+    PrivacyTemplateSerializer,
+    PrivacySettingsHistorySerializer,
+    DataExportRequestSerializer,
+    AccountDeletionRequestSerializer,
+    PrivacyComplianceReportSerializer
+)
 
 __all__ = [
     # Registration
@@ -34,5 +44,15 @@ __all__ = [
     'UserProfileUpdateSerializer',
     'UserProfileHistorySerializer',
     'ProfileCompletionSerializer',
-    'ProfileVisibilitySerializer'
+    'ProfileVisibilitySerializer',
+
+    # Privacy
+    'PrivacySettingsSerializer',
+    'PrivacySettingsUpdateSerializer',
+    'ConsentManagementSerializer',
+    'PrivacyTemplateSerializer',
+    'PrivacySettingsHistorySerializer',
+    'DataExportRequestSerializer',
+    'AccountDeletionRequestSerializer',
+    'PrivacyComplianceReportSerializer'
 ]

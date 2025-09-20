@@ -32,6 +32,17 @@ from .profile import (
     delete_profile,
     reset_profile
 )
+from .privacy import (
+    get_privacy_settings,
+    update_privacy_settings as update_privacy_settings_new,
+    manage_consent,
+    apply_privacy_template,
+    export_user_data,
+    request_account_deletion,
+    get_privacy_history,
+    get_privacy_compliance_report,
+    complete_privacy_review
+)
 
 __all__ = [
     # Registration
@@ -62,5 +73,16 @@ __all__ = [
     'get_profile_statistics',
     'get_public_profile',
     'delete_profile',
-    'reset_profile'
+    'reset_profile',
+
+    # Privacy
+    'get_privacy_settings',
+    'update_privacy_settings_new',
+    'manage_consent',
+    'apply_privacy_template',
+    'export_user_data',
+    'request_account_deletion',
+    'get_privacy_history',
+    'get_privacy_compliance_report',
+    'complete_privacy_review'
 ]
