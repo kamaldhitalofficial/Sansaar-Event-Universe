@@ -37,5 +37,5 @@ urlpatterns = [
     path('mfa/', include('authentication.urls.mfa')),
 
     # Social authentication endpoints (/api/auth/google/)
-    path('', include('authentication.urls.auth')),
+    path('', include('authentication.urls.auth', namespace='social_auth')),
 ]

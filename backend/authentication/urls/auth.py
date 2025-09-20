@@ -17,7 +17,9 @@ from authentication.views.google_auth_views import (
     initiate_google_auth,
     initiate_account_linking,
     google_auth_status,
-    unlink_google_account
+    unlink_google_account,
+    google_profile_sync,
+    google_account_management
 )
 
 app_name = 'social_auth'
@@ -37,4 +39,10 @@ urlpatterns = [
 
     # Get Google authentication status
     path('google/status/', google_auth_status, name='google_auth_status'),
+
+    # Google profile sync with privacy controls
+    path('google/sync/', google_profile_sync, name='google_profile_sync'),
+
+    # Google account management
+    path('google/manage/', google_account_management, name='google_account_management'),
 ]

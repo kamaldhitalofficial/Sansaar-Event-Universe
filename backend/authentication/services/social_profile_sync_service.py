@@ -135,8 +135,8 @@ class SocialProfileSyncService:
 
         # Update profile completion status
         if updated_fields:
-            profile.calculate_completion_percentage()
-            updated_fields.append('completion_percentage')
+            profile.profile_completion_percentage = profile.calculate_completion_percentage()
+            updated_fields.append('profile_completion_percentage')
 
         # Save profile if any fields were updated
         if updated_fields:

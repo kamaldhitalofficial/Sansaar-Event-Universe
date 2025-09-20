@@ -31,9 +31,9 @@ urlpatterns = [
     path('admin/', admin.site.urls),
 
     # Authentication (registration, login, sessions)
-    path('api/auth/', include('authentication.urls')),
+    path('api/auth/', include('authentication.urls', namespace='authentication')),
 
-    # Profile Management
+    # Profile Management (direct under /api/)
     path('api/', include('authentication.urls.profile')),
 
     # Social Authentication (Google OAuth)
