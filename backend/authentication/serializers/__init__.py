@@ -29,6 +29,21 @@ from .privacy import (
     AccountDeletionRequestSerializer,
     PrivacyComplianceReportSerializer
 )
+from .mfa import (
+    MFASetupSerializer,
+    MFASetupResponseSerializer,
+    MFAVerificationSerializer,
+    MFALoginVerificationSerializer,
+    MFAStatusSerializer,
+    MFADeviceSerializer,
+    TrustedDeviceSerializer,
+    MFADisableSerializer,
+    BackupCodesRegenerateSerializer,
+    BackupCodesResponseSerializer,
+    MFARecoveryRequestSerializer,
+    MFARecoveryVerifySerializer,
+    TrustedDeviceRevokeSerializer
+)
 
 __all__ = [
     # Registration
@@ -54,5 +69,20 @@ __all__ = [
     'PrivacySettingsHistorySerializer',
     'DataExportRequestSerializer',
     'AccountDeletionRequestSerializer',
-    'PrivacyComplianceReportSerializer'
+    'PrivacyComplianceReportSerializer',
+
+    # MFA
+    'MFASetupSerializer',
+    'MFASetupResponseSerializer',
+    'MFAVerificationSerializer',
+    'MFALoginVerificationSerializer',
+    'MFAStatusSerializer',
+    'MFADeviceSerializer',
+    'TrustedDeviceSerializer',
+    'MFADisableSerializer',
+    'BackupCodesRegenerateSerializer',
+    'BackupCodesResponseSerializer',
+    'MFARecoveryRequestSerializer',
+    'MFARecoveryVerifySerializer',
+    'TrustedDeviceRevokeSerializer'
 ]

@@ -1,0 +1,27 @@
+SANSAAR EVENT UNIVERSE - MFA RECOVERY REQUEST
+
+Hello {{ user.first_name|default:user.email }},
+
+We received a request to recover your Multi-Factor Authentication (MFA) settings for your Sansaar Event Universe account.
+
+⚠️ SECURITY NOTICE:
+This recovery process will disable MFA on your account and allow you to reset your password. Only proceed if you initiated this request.
+
+If you requested this recovery, visit the following link to proceed:
+{{ recovery_url }}
+
+This recovery link will expire in 1 hour for your security.
+
+SECURITY TIPS:
+- After recovery, we recommend re-enabling MFA immediately
+- Use a strong, unique password for your account
+- Keep your backup codes in a secure location
+- Never share your recovery links or codes with anyone
+
+If you did not request this recovery, please ignore this email and your account will remain secure. Consider changing your password if you suspect unauthorized access attempts.
+
+---
+This is an automated security email from Sansaar Event Universe.
+If you need help, please contact our support team.
+
+© {{ "now"|date:"Y" }} Sansaar Event Universe. All rights reserved.

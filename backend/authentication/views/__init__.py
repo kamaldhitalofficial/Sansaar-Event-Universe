@@ -43,6 +43,20 @@ from .privacy import (
     get_privacy_compliance_report,
     complete_privacy_review
 )
+from .mfa import (
+    mfa_status,
+    mfa_setup,
+    mfa_verify_setup,
+    mfa_verify_login,
+    mfa_disable,
+    mfa_regenerate_backup_codes,
+    mfa_devices,
+    trusted_devices,
+    revoke_trusted_device,
+    mfa_recovery_request,
+    mfa_recovery_verify,
+    check_trusted_device
+)
 
 __all__ = [
     # Registration
@@ -84,5 +98,19 @@ __all__ = [
     'request_account_deletion',
     'get_privacy_history',
     'get_privacy_compliance_report',
-    'complete_privacy_review'
+    'complete_privacy_review',
+
+    # MFA
+    'mfa_status',
+    'mfa_setup',
+    'mfa_verify_setup',
+    'mfa_verify_login',
+    'mfa_disable',
+    'mfa_regenerate_backup_codes',
+    'mfa_devices',
+    'trusted_devices',
+    'revoke_trusted_device',
+    'mfa_recovery_request',
+    'mfa_recovery_verify',
+    'check_trusted_device'
 ]

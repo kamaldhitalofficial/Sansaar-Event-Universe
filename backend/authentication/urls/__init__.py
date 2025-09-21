@@ -32,4 +32,7 @@ urlpatterns = [
 
     # Privacy management endpoints (/api/auth/privacy/)
     path('privacy/', include('authentication.urls.privacy')),
+
+    # MFA management endpoints (/api/auth/mfa/)
+    path('mfa/', include('authentication.urls.mfa')),
 ]

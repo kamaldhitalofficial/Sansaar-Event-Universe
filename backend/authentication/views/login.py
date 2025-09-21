@@ -226,6 +226,36 @@ def login_user(request):
             user_agent = request.META.get('HTTP_USER_AGENT', '')
             is_suspicious, suspicious_reasons = is_suspicious_login(user, ip_address, user_agent)
 
+            # Check if user has MFA enabled
+            from ..services import MFAService
+
+            if MFAService.user_has_active_mfa(user):
+                # Check if device is trusted
+                if not MFAService.is_trusted_device(user, request):
+                    # MFA required - return partial login response
+                    logger.info(f"MFA required for user: {user.email} from IP: {ip_address}")
+
+                    # Generate temporary token for MFA verification
+                    refresh = RefreshToken.for_user(user)
+                    access_token = refresh.access_token
+
+                    # Set shorter expiration for MFA token (5 minutes)
+                    access_token.set_exp(lifetime=timezone.timedelta(minutes=5))
+
+                    return Response({
+                        'message': 'MFA verification required',
+                        'mfa_required': True,
+                        'user': {
+                            'id': str(user.id),
+                            'email': user.email,
+                            'first_name': user.first_name,
+                            'last_name': user.last_name,
+                        },
+                        'mfa_token': str(access_token),
+                        'token_type': 'Bearer',
+                        'expires_in': 300  # 5 minutes
+                    }, status=status.HTTP_200_OK)
+
             # Generate JWT tokens using SimpleJWT
             refresh = RefreshToken.for_user(user)
             access_token = refresh.access_token
