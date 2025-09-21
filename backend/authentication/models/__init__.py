@@ -4,6 +4,7 @@ from .session import LoginHistory, UserSession
 from .verification import EmailVerification, PasswordReset
 from .profile import UserProfile, UserProfileHistory
 from .privacy import PrivacySettings, PrivacySettingsHistory
+from .mfa import MFADevice, MFABackupCode, TrustedDevice
 
 __all__ = [
     'User',
@@ -15,5 +16,8 @@ __all__ = [
     'UserProfile',
     'UserProfileHistory',
     'PrivacySettings',
-    'PrivacySettingsHistory'
+    'PrivacySettingsHistory',
+    'MFADevice',
+    'MFABackupCode',
+    'TrustedDevice',
 ]
