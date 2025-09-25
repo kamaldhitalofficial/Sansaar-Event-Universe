@@ -1,0 +1,13 @@
+# System Files
+.DS_Store
+
+# IDE / Editor Settings
+.idea/
+.vs_code/
+
+# Environment & Secrets
+.env
+
+# Python Environment
+.venv
+__pycache__/
