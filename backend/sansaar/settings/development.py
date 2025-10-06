@@ -37,3 +37,30 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:8000",  # Django development server
     "http://localhost:5000",  # Flutter desktop
 ]
+
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'kamaldhitalofficial@gmail.com'
+EMAIL_HOST_PASSWORD = 'zlaf fgkv bxda wlnw'
+DEFAULT_FROM_EMAIL = 'Sansaar Event Universe <kamaldhitalofficial@gmail.com>'
+EMAIL_TIMEOUT = 30
+
+
+# Temporary for testing
+# EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+# DEFAULT_FROM_EMAIL = 'noreply@sansaar.com'
+
+
+# Account Security Settings
+MAX_LOGIN_ATTEMPTS = 5
+LOCKOUT_DURATION = 30  # minutes
+EMAIL_VERIFICATION_TIMEOUT = 24  # hours
+
+import warnings
+warnings.filterwarnings(
+    "ignore",
+    message="cache backend django.core.cache.backends.locmem.LocMemCache is not officially supported",
+)
