@@ -1,3 +1,4 @@
+from .models import OAuthState, OAuthToken
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -11,9 +12,20 @@ from datetime import timedelta
 from django_ratelimit.decorators import ratelimit
 from django.utils.decorators import method_decorator
 from .serializers import RegisterSerializer, LoginSerializer, ResendVerificationSerializer
+import logging, secrets, requests
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
+from django.contrib import messages
+from django.shortcuts import redirect
+from django.urls import reverse
+from django.http import JsonResponse
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth import login, logout
+
 
 User = get_user_model()
 
+logger = logging.getLogger(__name__)
 
 def get_tokens_for_user(user):
     refresh = RefreshToken.for_user(user)
@@ -284,3 +296,329 @@ class RefreshTokenView(APIView):
                 {'error': 'Invalid or expired refresh token.'},
                 status=status.HTTP_401_UNAUTHORIZED
             )
+        
+        
+
+class GoogleOAuthService:
+    def __init__(self):
+        self.client_id = settings.GOOGLE_OAUTH_CLIENT_ID
+        self.client_secret = settings.GOOGLE_OAUTH_CLIENT_SECRET
+        self.redirect_uri = settings.GOOGLE_OAUTH_REDIRECT_URI
+        self.scope = 'openid email profile'
+        self.auth_url = 'https://accounts.google.com/o/oauth2/v2/auth'
+        self.token_url = 'https://oauth2.googleapis.com/token'
+        self.userinfo_url = 'https://www.googleapis.com/oauth2/v2/userinfo'
+    
+    def generate_auth_url(self):
+        """Generate Google OAuth authorization URL"""
+        state = secrets.token_urlsafe(32)
+        
+        # Store state for verification
+        OAuthState.objects.create(state=state)
+        
+        params = {
+            'client_id': self.client_id,
+            'redirect_uri': self.redirect_uri,
+            'scope': self.scope,
+            'response_type': 'code',
+            'state': state,
+            'access_type': 'offline',
+            'prompt': 'consent'
+        }
+        
+        auth_url = f"{self.auth_url}?" + "&".join([f"{k}={v}" for k, v in params.items()])
+        return auth_url, state
+    
+    def verify_state(self, state):
+        """Verify OAuth state parameter"""
+        try:
+            oauth_state = OAuthState.objects.get(state=state, used=False)
+            if oauth_state.is_expired():
+                oauth_state.delete()
+                return False
+            
+            oauth_state.used = True
+            oauth_state.save()
+            return True
+        except OAuthState.DoesNotExist:
+            return False
+    
+    def exchange_code_for_token(self, code):
+        """Exchange authorization code for access token"""
+        data = {
+            'client_id': self.client_id,
+            'client_secret': self.client_secret,
+            'code': code,
+            'grant_type': 'authorization_code',
+            'redirect_uri': self.redirect_uri,
+        }
+        
+        response = requests.post(self.token_url, data=data)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            logger.error(f"Token exchange failed: {response.text}")
+            return None
+    
+    def get_user_info(self, access_token):
+        """Get user information from Google"""
+        headers = {'Authorization': f'Bearer {access_token}'}
+        response = requests.get(self.userinfo_url, headers=headers)
+        
+        if response.status_code == 200:
+            return response.json()
+        else:
+            logger.error(f"User info fetch failed: {response.text}")
+            return None
+    
+    def refresh_token(self, refresh_token):
+        """Refresh OAuth token"""
+        data = {
+            'client_id': self.client_id,
+            'client_secret': self.client_secret,
+            'refresh_token': refresh_token,
+            'grant_type': 'refresh_token',
+        }
+        
+        response = requests.post(self.token_url, data=data)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            logger.error(f"Token refresh failed: {response.text}")
+            return None
+    
+    def revoke_token(self, token):
+        """Revoke OAuth token"""
+        revoke_url = f"https://oauth2.googleapis.com/revoke?token={token}"
+        response = requests.post(revoke_url)
+        return response.status_code == 200
+    
+    def create_or_update_user(self, user_info, token_data):
+        """Create or update user from Google OAuth data"""
+        email = user_info.get('email')
+        google_id = user_info.get('id')
+        
+        if not email or not google_id:
+            raise ValueError("Missing required user information")
+        
+        # Check if user exists with this Google ID
+        try:
+            user = User.objects.get(google_id=google_id)
+            # Update existing OAuth user
+            user.email = email
+            user.first_name = user_info.get('given_name', '')
+            user.last_name = user_info.get('family_name', '')
+            user.profile_picture = user_info.get('picture', '')
+            user.is_email_verified = user_info.get('verified_email', False)
+            user.save()
+        except User.DoesNotExist:
+            # Check if user exists with this email
+            try:
+                user = User.objects.get(email=email)
+                # Link existing account to Google OAuth
+                user.connect_google_oauth(
+                    google_id=google_id,
+                    profile_picture=user_info.get('picture', '')
+                )
+            except User.DoesNotExist:
+                # Create new user
+                user = User.objects.create_user(
+                    username=email,
+                    email=email,
+                    first_name=user_info.get('given_name', ''),
+                    last_name=user_info.get('family_name', ''),
+                    google_id=google_id,
+                    profile_picture=user_info.get('picture', ''),
+                    oauth_provider='google',
+                    is_oauth_user=True,
+                    is_email_verified=user_info.get('verified_email', False),
+                    oauth_connected_at=timezone.now()
+                )
+        
+        # Store or update OAuth token
+        expires_at = timezone.now() + timedelta(seconds=token_data.get('expires_in', 3600))
+        
+        oauth_token, created = OAuthToken.objects.get_or_create(
+            user=user,
+            defaults={
+                'access_token': token_data['access_token'],
+                'refresh_token': token_data.get('refresh_token'),
+                'token_type': token_data.get('token_type', 'Bearer'),
+                'expires_at': expires_at,
+                'scope': token_data.get('scope', ''),
+                'provider': 'google'
+            }
+        )
+        
+        if not created:
+            # Update existing token
+            oauth_token.access_token = token_data['access_token']
+            if token_data.get('refresh_token'):
+                oauth_token.refresh_token = token_data['refresh_token']
+            oauth_token.token_type = token_data.get('token_type', 'Bearer')
+            oauth_token.expires_at = expires_at
+            oauth_token.scope = token_data.get('scope', '')
+            oauth_token.save()
+        
+        return user
+    
+
+@require_http_methods(["GET"])
+def google_oauth_login(request):
+    """Initiate Google OAuth login"""
+    try:
+        oauth_service = GoogleOAuthService()
+        auth_url, state = oauth_service.generate_auth_url()
+        
+        # Store state in session for additional security
+        request.session['oauth_state'] = state
+        
+        return redirect(auth_url)
+    except Exception as e:
+        logger.error(f"OAuth login initiation failed: {str(e)}")
+        messages.error(request, "Failed to initiate Google login. Please try again.")
+        return redirect('accounts:login')
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def google_oauth_callback(request):
+    """Handle Google OAuth callback"""
+    try:
+        code = request.GET.get('code')
+        state = request.GET.get('state')
+        error = request.GET.get('error')
+        
+        # Handle OAuth errors
+        if error:
+            error_description = request.GET.get('error_description', 'Unknown error')
+            logger.error(f"OAuth error: {error} - {error_description}")
+            messages.error(request, f"Google authentication failed: {error_description}")
+            return redirect('accounts:login')
+        
+        if not code or not state:
+            messages.error(request, "Invalid OAuth response. Please try again.")
+            return redirect('accounts:login')
+        
+        oauth_service = GoogleOAuthService()
+        
+        # Verify state parameter
+        if not oauth_service.verify_state(state):
+            messages.error(request, "Invalid OAuth state. Possible security issue.")
+            return redirect('accounts:login')
+        
+        # Exchange code for token
+        token_data = oauth_service.exchange_code_for_token(code)
+        if not token_data:
+            messages.error(request, "Failed to obtain access token from Google.")
+            return redirect('accounts:login')
+        
+        # Get user information
+        user_info = oauth_service.get_user_info(token_data['access_token'])
+        if not user_info:
+            messages.error(request, "Failed to get user information from Google.")
+            return redirect('accounts:login')
+        
+        # Create or update user
+        user = oauth_service.create_or_update_user(user_info, token_data)
+        
+        # Log the user in
+        login(request, user)
+        
+        # Clear OAuth state from session
+        request.session.pop('oauth_state', None)
+        
+        messages.success(request, f"Welcome, {user.first_name or user.username}!")
+        
+        # Redirect to next page or dashboard
+        next_url = request.session.pop('next', None) or reverse('dashboard')
+        return redirect(next_url)
+        
+    except Exception as e:
+        logger.error(f"OAuth callback failed: {str(e)}")
+        messages.error(request, "Authentication failed. Please try again.")
+        return redirect('accounts:login')
+
+@login_required
+@require_http_methods(["POST"])
+def connect_google_oauth(request):
+    """Connect existing account to Google OAuth"""
+    try:
+        if request.user.is_oauth_user and request.user.oauth_provider == 'google':
+            return JsonResponse({
+                'error': 'Account is already connected to Google'
+            }, status=400)
+        
+        oauth_service = GoogleOAuthService()
+        auth_url, state = oauth_service.generate_auth_url()
+        
+        # Store connection intent in session
+        request.session['oauth_connect_mode'] = True
+        request.session['oauth_state'] = state
+        
+        return JsonResponse({
+            'auth_url': auth_url
+        })
+        
+    except Exception as e:
+        logger.error(f"OAuth connection failed: {str(e)}")
+        return JsonResponse({
+            'error': 'Failed to initiate Google connection'
+        }, status=500)
+
+@login_required
+@require_http_methods(["POST"])
+def disconnect_google_oauth(request):
+    """Disconnect Google OAuth from account"""
+    try:
+        user = request.user
+        
+        if not user.is_oauth_user or user.oauth_provider != 'google':
+            return JsonResponse({
+                'error': 'Account is not connected to Google'
+            }, status=400)
+        
+        # Check if user has a password (for security)
+        if not user.has_usable_password():
+            return JsonResponse({
+                'error': 'Cannot disconnect Google account. Please set a password first.'
+            }, status=400)
+        
+        oauth_service = GoogleOAuthService()
+        
+        # Revoke token if it exists
+        try:
+            oauth_token = user.oauth_token
+            if oauth_token.access_token:
+                oauth_service.revoke_token(oauth_token.access_token)
+            oauth_token.delete()
+        except OAuthToken.DoesNotExist:
+            pass
+        
+        # Disconnect OAuth from user
+        user.disconnect_oauth()
+        
+        return JsonResponse({
+            'message': 'Google account disconnected successfully'
+        })
+        
+    except Exception as e:
+        logger.error(f"OAuth disconnection failed: {str(e)}")
+        return JsonResponse({
+            'error': 'Failed to disconnect Google account'
+        }, status=500)
+
+@require_http_methods(["GET"])
+def oauth_status(request):
+    """Get OAuth connection status"""
+    if not request.user.is_authenticated:
+        return JsonResponse({
+            'connected': False,
+            'provider': None
+        })
+    
+    return JsonResponse({
+        'connected': request.user.is_oauth_user,
+        'provider': request.user.oauth_provider,
+        'connected_at': request.user.oauth_connected_at.isoformat() if request.user.oauth_connected_at else None,
+        'profile_picture': request.user.profile_picture
+    })
