@@ -1,0 +1,18 @@
+Welcome to {{ site_name }}!
+
+Hello {{ user.first_name }},
+
+Thank you for registering with {{ site_name }}. To complete your account setup and start using our platform, please verify your email address by clicking the link below:
+
+{{ verification_url }}
+
+IMPORTANT: This verification link will expire in {{ expire_hours }} hours. If you don't verify your email within this time, you'll need to request a new verification email.
+
+If you didn't create an account with {{ site_name }}, please ignore this email.
+
+Best regards,
+The {{ site_name }} Team
+
+---
+This is an automated message, please do not reply to this email.
+© {{ site_name }}. All rights reserved.
