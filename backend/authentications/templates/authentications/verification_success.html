@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Verified - {{ site_name }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .success-icon {
+            font-size: 64px;
+            color: #4CAF50;
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #4CAF50;
+            margin-bottom: 20px;
+        }
+        .user-info {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .next-steps {
+            margin-top: 30px;
+            text-align: left;
+        }
+        .next-steps ul {
+            padding-left: 20px;
+        }
+        .next-steps li {
+            margin-bottom: 8px;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            font-size: 14px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="success-icon">✅</div>
+        <h1>Email Verified Successfully!</h1>
+        
+        <p>Congratulations! Your email address has been verified and your account is now active.</p>
+        
+        <div class="user-info">
+            <strong>Account Details:</strong><br>
+            Email: {{ user.email }}<br>
+            Name: {{ user.first_name }} {{ user.last_name }}<br>
+            Username: {{ user.username }}
+        </div>
+        
+        <div class="next-steps">
+            <h3>What's Next?</h3>
+            <ul>
+                <li>Your account is now fully activated</li>
+                <li>You can now log in to {{ site_name }}</li>
+                <li>Start exploring events and creating your profile</li>
+                <li>Enjoy the platform!</li>
+            </ul>
+        </div>
+        
+        <div class="footer">
+            <p>Thank you for joining {{ site_name }}!</p>
+            <p>If you have any questions, please contact our support team.</p>
+        </div>
+    </div>
+</body>
+</html>
