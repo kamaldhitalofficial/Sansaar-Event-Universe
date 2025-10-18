@@ -12,21 +12,9 @@ ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0']
 # Database
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': config('DB_NAME'),
-        'USER': config('DB_USER'),
-        'PASSWORD': config('DB_PASSWORD'),
-        'HOST': config('DB_HOST'),
-        'PORT': config('DB_PORT'),
-        'OPTIONS': {
-            'sslmode': 'prefer',
-        },
-        'CONN_MAX_AGE': 600,
-        'ATOMIC_REQUESTS': True,
-        'TEST': {
-            'NAME': config('DB_TEST_NAME'),
-        },
-    }
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+    },
 }
 
 # Session Configuration - Less secure for development
@@ -43,7 +31,7 @@ SECURE_HSTS_PRELOAD = False
 # CORS - More permissive for development
 CORS_ALLOW_ALL_ORIGINS = True  # Only for development!
 
-# Email - Console backend for development
+# Email - Console another_backend for development
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
 # Logging Configuration - More verbose for development
@@ -64,7 +52,7 @@ LOGGING = {
         'file': {
             'level': 'DEBUG',
             'class': 'logging.FileHandler',
-            'filename': BASE_DIR / 'sansaar' / 'logs' / 'django_dev.log',
+            'filename': BASE_DIR / 'auth_service' / 'logs' / 'django_dev.log',
             'formatter': 'verbose',
         },
         'console': {
