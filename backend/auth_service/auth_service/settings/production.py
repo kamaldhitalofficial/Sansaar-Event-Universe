@@ -63,7 +63,7 @@ CORS_ALLOWED_ORIGINS = config(
     cast=lambda v: [s.strip() for s in v.split(',') if s.strip()]
 )
 
-# Email - SMTP backend for production
+# Email - SMTP another_backend for production
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 
 # Static files - Use WhiteNoise for serving static files

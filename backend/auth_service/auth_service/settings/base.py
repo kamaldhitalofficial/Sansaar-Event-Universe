@@ -66,7 +66,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = 'sansaar.urls'
+ROOT_URLCONF = 'auth_service.urls'
 
 TEMPLATES = [
     {
@@ -84,7 +84,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'sansaar.wsgi.application'
+WSGI_APPLICATION = 'auth_service.wsgi.application'
 
 # Password validation with enhanced security
 AUTH_PASSWORD_VALIDATORS = [
@@ -113,7 +113,7 @@ USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [BASE_DIR / 'sansaar' / 'static']
+STATICFILES_DIRS = [BASE_DIR / 'auth_service' / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 MEDIA_URL = '/media/'
