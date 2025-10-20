@@ -215,7 +215,7 @@ class GoogleOAuthCallbackView(View):
 
     def _build_frontend_redirect_url(self, data, path='/auth/callback'):
         """Build frontend redirect URL with data."""
-        frontend_base = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+        frontend_base = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')
 
         # Convert data to query parameters
         params = []
